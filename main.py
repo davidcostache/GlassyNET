@@ -1,12 +1,13 @@
 import asyncio
 import logging
 import os
+from datetime import datetime, timedelta, timezone
+
 import discord
 from discord import Interaction, SelectOption
 from discord.ext import commands
 from discord.ui import View, Select
 from dotenv import load_dotenv
-from datetime import datetime, timedelta, timezone
 
 # Set up the bot with command prefix and intents
 bot = commands.Bot(command_prefix='/', intents=discord.Intents.all())
@@ -29,6 +30,7 @@ role_update_queue = {}
 # noinspection PyUnresolvedReferences
 class Commands(commands.Cog):
     """Defines a set of commands for managing roles and messages in a Discord server."""
+
     def __init__(self, bot_instance):
         """Initializes the commands with a bot instance."""
         self.bot = bot_instance
@@ -116,6 +118,7 @@ class Commands(commands.Cog):
 # noinspection PyUnresolvedReferences
 class RoleSelector(Select):
     """A UI element for selecting roles to add or remove from a user."""
+
     def __init__(self, user, roles, remove=False):
         self.user = user
         self.roles = roles
@@ -155,6 +158,7 @@ class RoleSelector(Select):
 
 class RoleView(View):
     """A UI view containing a RoleSelector for adding or removing roles."""
+
     def __init__(self, user, roles, remove=False):
         super().__init__()
         self.add_item(RoleSelector(user, roles, remove))
@@ -163,10 +167,17 @@ class RoleView(View):
 @bot.event
 async def on_ready():
     """Event handler called when the bot is ready."""
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="over the server"))
+    await update_bot_activity()
     await bot.add_cog(Commands(bot))
     await bot.tree.sync()
     await bot.loop.create_task(periodic_role_check())
+
+
+async def update_bot_activity():
+    guild = bot.guilds[0]
+    member_count = guild.member_count
+    activity_text = f"over {member_count:,} members"
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=activity_text))
 
 
 async def send_verification_message(member, roles):
@@ -285,9 +296,23 @@ async def assign_role_to_member(member, role_id):
 
 @bot.event
 async def on_member_join(member):
-    """Event handler for when a new member joins the server."""
+    """
+    Event handler for when a new member joins the server.
+    Automatically assigns a specified role to the new member
+    and updates the bot's activity to reflect the new member count.
+    """
     role_id = 372378135557308427
     await assign_role_to_member(member, role_id)
+    await update_bot_activity()
+
+
+@bot.event
+async def on_member_remove(member):
+    """
+    Event handler for when a member leaves the server.
+    Updates the bot's activity to reflect the new member count.
+    """
+    await update_bot_activity()
 
 
 async def check_and_assign_role(guild, role_id):
